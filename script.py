@@ -1,59 +1,35 @@
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+
 import pandas as pd
 import numpy as np
-from sklearn import preprocessing
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+import functions as func
 
 
-def main():
+path = "../data/data_g.csv"
+data = pd.read_csv(path, encoding="latin-1", sep=";")
+indx = pd.unique(data.id)
+indx_names = list(data.columns)
+print("Amount of data is" + str(len(indx)))
+# Summarize data
+summ = data.describe(include='all')
+# T-test example
+# Create a 3-column subset from full data (0/1-variables) and run t-test)
+b = data.loc[:, func.getVar(indx_names, [2, 3, 4, 77])]
+result_ttest = func.tt2df(b, 'poistunut')
 
-    path = "../data/data_g.csv"
-    data = pd.read_csv(path, encoding="latin-1", sep=";")
-    # Preview the first 5 lines of the loaded data
-    data.head()
-    test = data.sort_values(["id", "timestamp"]).head(10000)
-    test['kanava_myynti'] = test['kanava_myynti'].fillna(value='0')
+# Pivot data by id (mean values by default)
+piv_a = data.pivot_table(index='id')
 
-
-def preproc(data):
-    dates = ["timestamp", "viimeisin_sattpvm", "asiakkuus_alkpvm"]
-    # Econding dates
-    for i in dates:
-        data[i] = pd.to_datetime(data[i])
-        data[i].apply(lambda x: x.timestamp())
-
-    # which are categorical
-    cat_types = data.select_dtypes(exclude=["number", "bool_", "object_"])
-    cols = data.columns
-    num_cols = data._get_numeric_data().columns
-    categorical = list(set(cols) - set(num_cols))
-
-    # Encoding categorical data
-    genderEncode = LabelEncoder()
-    data["sukupuoli"] = genderEncode.fit_transform(
-        data["sukupuoli"])
-    languageEncode = LabelEncoder()
-    data["kieli"] = languageEncode.fit_transform(
-        data["kieli"])
-    yryhtEncode = LabelEncoder()
-    data["yryht_laatu"] = yryhtEncode.fit_transform(
-        data["yryht_laatu"])
-    locationEncode = LabelEncoder()
-    data["alue"] = locationEncode.fit_transform(
-        data["alue"])
-    sellingLocEncode = LabelEncoder()
-    data["kanava_myynti"] = sellingLocEncode.fit_transform(
-        data["kanava_myynti"])
-    moveEncode = LabelEncoder()
-    data["viim_muutto"] = moveEncode.fit_transform(
-        data["viim_muutto"])
-    lastSoldEncode = LabelEncoder()
-    data["viim_myynti"] = lastSoldEncode.fit_transform(
-        data["viim_myynti"])
+# Take ended and on-going
+ended = piv_a.loc[piv_a.poistunut > 0]
+ongoing = piv_a.loc[piv_a.poistunut == 0]
 
 
-if __name__ == "__main__":
-    main()
+print("Amount that ended" + str(ended.size/len(indx)))
+# Compare "Ended vs. Ongoing"
+comp = (ended.describe() - ongoing.describe())
+
+# Preview the first 5 lines of the loaded data
+data.head()
+test = data.sort_values(["id", "timestamp"]).head(10000)
+test['kanava_myynti'] = test['kanava_myynti'].fillna(value='0')
+test = func.prepare(test)

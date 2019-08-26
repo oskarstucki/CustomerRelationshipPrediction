@@ -1,55 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr 15 18:00:42 2019
+
+@author: h17163
+"""
+
 import pandas as pd
 from scipy.stats import ttest_ind
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 
-
-def xlsxToCsv():
-    data_xls = pd.read_excel('../data/startData.xlsx')
-    data_xls.to_csv('start.csv', encoding='utf-8', index=False)
-
-
-def prepare(data):
-    dates = ["timestamp", "viimeisin_sattpvm", "asiakkuus_alkpvm"]
-    # Econding dates
-    for i in dates:
-        data[i] = pd.to_datetime(data[i])
-        data[i].apply(lambda x: x.timestamp())
-
-    # remove dates
-    data = data.drop(columns=dates)
-
-    # which are categorical
-    cat_types = data.select_dtypes(exclude=["number", "bool_", "object_"])
-    cols = data.columns
-    num_cols = data._get_numeric_data().columns
-    categorical = list(set(cols) - set(num_cols))
-
-    # Encoding categorical data
-    genderEncode = LabelEncoder()
-    data["sukupuoli"] = genderEncode.fit_transform(
-        data["sukupuoli"])
-    languageEncode = LabelEncoder()
-    data["kieli"] = languageEncode.fit_transform(
-        data["kieli"])
-    yryhtEncode = LabelEncoder()
-    data["yryht_laatu"] = yryhtEncode.fit_transform(
-        data["yryht_laatu"])
-    locationEncode = LabelEncoder()
-    data["alue"] = locationEncode.fit_transform(
-        data["alue"])
-    sellingLocEncode = LabelEncoder()
-    data["kanava_myynti"] = sellingLocEncode.fit_transform(
-        data["kanava_myynti"])
-    moveEncode = LabelEncoder()
-    data["viim_muutto"] = moveEncode.fit_transform(
-        data["viim_muutto"])
-    lastSoldEncode = LabelEncoder()
-    data["viim_myynti"] = lastSoldEncode.fit_transform(
-        data["viim_myynti"])
-    return data
+# %% FUNCTIONS
+# Get multiple items from a list
 
 
 def getVar(searchList, ind): return [searchList[i] for i in ind]
@@ -95,3 +55,34 @@ def tt2df(df, yvar_col='target', p_thre=0.05, full=0):
         return res.iloc[:, -1][res.iloc[:, -1] == True]
     else:
         return res
+
+
+# %% READ DATA
+
+path = "../data/data_g.csv"
+data = pd.read_csv(path, encoding="latin-1", sep=";")
+
+# %% WORKING WITH DATA...
+# Get id:s and calculate the number of unique
+indx = pd.unique(data.id)
+indx_names = list(data.columns)
+len(indx)
+
+# Summarize data
+summ = data.describe(include='all')
+
+# T-test example
+# Create a 3-column subset from full data (0/1-variables) and run t-test)
+b = data.loc[:, getVar(indx_names, [2, 3, 4, 77])]
+result_ttest = tt2df(b, 'poistunut')
+
+# %% OTHER STUFF
+# Pivot data by id (mean values by default)
+piv_a = data.pivot_table(index='id')
+
+# Take ended and on-going
+ended = piv_a.loc[piv_a.poistunut > 0]
+ongoing = piv_a.loc[piv_a.poistunut == 0]
+
+# Compare "Ended vs. Ongoing"
+comp = (ended.describe() - ongoing.describe())
