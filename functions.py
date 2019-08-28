@@ -1,4 +1,5 @@
 import pandas as pd
+import datetime as dt
 from scipy.stats import ttest_ind
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import matplotlib.pyplot as plt
@@ -11,21 +12,33 @@ def xlsxToCsv():
     data_xls.to_csv('start.csv', encoding='utf-8', index=False)
 
 
-def prepare(data):
-    dates = ["timestamp", "viimeisin_sattpvm", "asiakkuus_alkpvm"]
-    # Econding dates
+def timePreparing(data):
+    dates = ["viimeisin_sattpvm", "asiakkuus_alkpvm"]
+
+    # remove dates and empty  values
     for i in dates:
         data[i] = pd.to_datetime(data[i])
-        data[i].apply(lambda x: x.timestamp())
+    now = dt.datetime.now()
 
-    # remove dates
-    data = data.drop(columns=dates)
+   
+    data["days_from_sattpvm"] = data.agg({dates[0]: lambda x: (now-x).days})
+    data["days_from_customer"] = data.agg({dates[1]: lambda x: (now-x).days})
+    return data
+
+
+def prepare(data):
+    data = timePreparing(data)
+
+    # remove unnecessary fields
+    unnecessaryFields = ["id", "timestamp"]
+    data = data.drop(columns=unnecessaryFields)
+    data = data.dropna()
 
     # which are categorical
-    cat_types = data.select_dtypes(exclude=["number", "bool_", "object_"])
+    #cat_types = data.select_dtypes(exclude=["number", "bool_", "object_"])
     cols = data.columns
     num_cols = data._get_numeric_data().columns
-    categorical = list(set(cols) - set(num_cols))
+    #categorical = list(set(cols) - set(num_cols))
 
     # Encoding categorical data
     genderEncode = LabelEncoder()
