@@ -14,16 +14,16 @@ columsn = list(data.columns)
 print("Amount of users is " + str(len(amountOfUsers)))
 
 # %% Take a test sample
-dataSmall = data.head(200000)
-dataSmall = func.prepare(dataSmall)
-print(dataSmall.describe)
+dataSmall = data.head(5000)
+dataSmallProcessed = func.prepare(dataSmall.copy())
+cleanedColumns = list(dataSmallProcessed.columns)
+print(dataSmallProcessed.describe)
+
 
 # %% Summarize data
-data_cleaned = data.drop(columns="timestamp")
-data_cleaned = data.dropna()
-data_cleaned2 = func.prepare(data)
+data_cleaned2 = func.prepare(dataSmall)
 # Very slow
-groups = data_cleaned.groupby('id').agg(lambda x: x.tolist())
+#groups = data_cleaned.groupby('id').agg(lambda x: x.tolist())
 
 summ = data_cleaned.describe(include='all')
 

@@ -15,24 +15,31 @@ def xlsxToCsv():
 def timePreparing(data):
     dates = ["viimeisin_sattpvm", "asiakkuus_alkpvm"]
 
-    # remove dates and empty  values
+# remove dates and empty  values
     for i in dates:
         data[i] = pd.to_datetime(data[i])
     now = dt.datetime.now()
 
-   
     data["days_from_sattpvm"] = data.agg({dates[0]: lambda x: (now-x).days})
     data["days_from_customer"] = data.agg({dates[1]: lambda x: (now-x).days})
     return data
 
 
 def prepare(data):
+    if isIllogical(data):
+        exit("Data makes no sense")
+
     data = timePreparing(data)
 
     # remove unnecessary fields
-    unnecessaryFields = ["id", "timestamp"]
+    unnecessaryFields = ["id", "timestamp",
+                         "time_of_interestX", "validation_split"]
+
     data = data.drop(columns=unnecessaryFields)
-    data = data.dropna()
+
+    values = {'liikenne_poistunut': 0,
+              'kasko_poistunut': 0, 'fetu_poistunut': 0, 'alue': "empty", 'kanava_myynti': "empty"}
+    data = data.fillna(value=values)
 
     # which are categorical
     #cat_types = data.select_dtypes(exclude=["number", "bool_", "object_"])
@@ -62,10 +69,21 @@ def prepare(data):
     lastSoldEncode = LabelEncoder()
     data["viim_myynti"] = lastSoldEncode.fit_transform(
         data["viim_myynti"])
+
     return data
 
 
 def getVar(searchList, ind): return [searchList[i] for i in ind]
+
+
+def isIllogical(data):
+    if data.loc[(data["liikenne_voim"] == 0) & (data["liikenne_poistunut"] == 1), "id"].size != 0:
+        return True
+    if data.loc[(data["kasko_voim"] == 0) & (data["kasko_poistunut"] == 1), "id"].size != 0:
+        return True
+    if data.loc[(data["fetu_voim"] == 0) & (data["fetu_poistunut"] == 1), "id"].size != 0:
+        return True
+    return False
 
 # 2-sample t-test
 
