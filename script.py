@@ -3,67 +3,155 @@
 import pandas as pd
 import numpy as np
 import functions as func
+import plot as plotter
+import preprocessing as pre
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from imblearn.over_sampling import SMOTE
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+import seaborn as sns
 
 # %% read data
 path = "../data/data_g.csv"
 data = pd.read_csv(path, encoding="latin-1", sep=";")
 amountOfUsers = pd.unique(data.id)
-columsn = list(data.columns)
+cols = list(data.columns)
 print("Amount of users is " + str(len(amountOfUsers)))
+churners = data.where(data["poistunut"] == 1).dropna(subset=["poistunut"])
+stayed = data.where(data["poistunut"] == 0).dropna(subset=["poistunut"])
+print("Percentage of churners is " +  str(len(churners.index)/len(data.index)))
+sns.distplot(data["ika"])
+#%% Check the distribution
+target_count = data.poistunut.value_counts()
+print('Class 0:', target_count[0])
+print('Class 1:', target_count[1])
+print('Proportion:', round(target_count[0] / target_count[1], 2), ': 1')
+
+target_count.plot(kind='bar', title='Count (target)');
+
+#%% Split the data to two classes
+data_sampled = A = pd.concat([churners, stayed.head(len(churners.index))], axis=0)
+data_sampled = data_sampled.sample(frac=1)
+
+#%% Check the distribution
+target_count = data_sampled.poistunut.value_counts()
+print('Class 0:', target_count[0])
+print('Class 1:', target_count[1])
+print('Proportion:', round(target_count[0] / target_count[1], 2), ': 1')
+
+target_count.plot(kind='bar', title='Count (target)');
 
 # %% Take a test sample
-dataSmall = data.head(5000)
-dataSmallProcessed = func.prepare(dataSmall.copy())
-cleanedColumns = list(dataSmallProcessed.columns)
-print(dataSmallProcessed.describe)
+
+dataSample = data_sampled.head(60000)
+dataPros = pre.prepare(dataSample.copy())
+columns = list(dataPros.columns)
+
+dataSample_n = data.head(60000)
+dataPros_n = pre.prepare(dataSample_n.copy())
+
+#print(dataPros.describe)
+#%% Oversample
+
+dataProsSample = pre.oversample(dataPros)
 
 
-# %% Summarize data
-data_cleaned2 = func.prepare(dataSmall)
-# Very slow
-#groups = data_cleaned.groupby('id').agg(lambda x: x.tolist())
+#%% Label
 
-summ = data_cleaned.describe(include='all')
+y = dataPros.loc[:, "poistunut"]
+drop = ["poistunut", "kasko_poistunut", "fetu_poistunut", "liikenne_poistunut"]
+dataLabel, labels = pre.labeling(dataPros.drop(columns=drop))
 
-# %% Cleaning
+y_n = dataPros_n.loc[:, "poistunut"]
+dataLabel_n, labels_n = pre.labeling(dataPros_n.drop(columns=drop))
+#%% Scale
 
-# Pivot data by id (mean values by default)
-piv_a = data_cleaned.pivot_table(index='id')
+scaler = StandardScaler()
+dataProsSampleScaled = scaler.fit_transform(dataLabel)
 
-# Take ended and on-going
-ended = data_cleaned.loc[data_cleaned.poistunut > 0]
-ongoing = data_cleaned.loc[data_cleaned.poistunut == 0]
+dataProsSample_n = scaler.fit_transform(dataLabel_n)
+#dict_labels["scaler"] = scaler.get_params(deep=True)
 
-ended_liik = data_cleaned.loc[data_cleaned.liikenne_poistunut == 0]
-ended_fetu = data_cleaned.loc[data_cleaned.kasko_poistunut == 0]
-ended_kasko = data_cleaned.loc[data_cleaned.fetu_poistunut == 0]
+#%% Feature selection
+dataProsSampleScaledSelected = func.featureSelection(dataProsSampleScaled, y)
+dataProsSampleScaledSelected_n = func.featureSelection(dataProsSample_n, y_n)
+#%% Transform data
+pca = PCA(n_components=2)
+
+X = pca.fit_transform(dataProsSampleScaledSelected)
+x_n = pca.fit_transform(dataProsSampleScaledSelected_n)
+plotter.plot_2d_space(X, y, 'Imbalanced dataset (2 PCA components)')
+
+#%%
+smote = SMOTE(ratio='minority')
+X_sm, y_sm = smote.fit_sample(X, y)
+
+plotter.plot_2d_space(X_sm, y_sm, 'SMOTE over-sampling')
 
 
-#groups_ended = ended.groupby('id').agg(lambda x: x.tolist())
-#groups_ongoing = ongoing.groupby('id').agg(lambda x: x.tolist())
+#%%
+
+matrixes = func.run(dataProsSampleScaledSelected_n, y_n, dataLabel.columns)
+
+#%%
+dataTail = data.tail(1000)#.where(data["poistunut"] == 1)
+dataTail = dataTail.dropna(subset=["poistunut"])
+dataTailPros = pre.prepare(dataTail.copy())
+
+y_tail = dataTailPros.loc[:, "poistunut"]
+drop = ["poistunut", "kasko_poistunut", "fetu_poistunut", "liikenne_poistunut"]
+dataLabelTail, labelsTail = pre.labeling(dataTailPros.drop(columns=drop))
 
 
-print("Amount that ended " + str(ended.size/(ended.size + ongoing.size)))
-# Compare "Ended vs. Ongoing"
-comp = (ended.describe() - ongoing.describe())
 
-# Preview the first 5 lines of the loaded data
-data_cleaned.head()
+#%%
 
 
-# %% Plot
-# Basic correlogram
-print(data_cleaned.columns)
-sns.distplot(data_cleaned.ika)
-sns.distplot(data_cleaned.ika)
+x_train, x_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.25, random_state=0)
+ 
+rfc = RandomForestClassifier(n_estimators=100, max_depth=10,
+                 random_state=0)
+rfc.fit(x_train, y_train)
+func.report(y_test, rfc.predict(x_test), columns, "RFC")
 
-# sns.pairplot(data)
-# sns.plt.show()
+dt = DecisionTreeClassifier().fit(x_train, y_train)
+func.report(y_test, dt.predict(x_test), columns, "DT")
+func.report(y_n, dt.predict(x_n), columns, "DT")
+param_grid = {"criterion": ["gini", "entropy"],
+              "min_samples_split": [2, 10, 20],
+              "max_depth": [None, 2, 5, 10],
+              "min_samples_leaf": [1, 5, 10],
+              "max_leaf_nodes": [None, 5, 10, 20],
+              }
 
-# %% Testing
-# T-test example
-# Create a 3-column subset from full data (0/1-variables) and run t-test)
-b = data.loc[:, func.getVar(indx_names, [2, 3, 4, 77])]
-result_ttest = func.tt2df(b, 'poistunut')
+dt_s = DecisionTreeClassifier()
+n_iter_search = 20
+random_search = GridSearchCV(dt_s, param_grid=param_grid,
+                                   scoring="accuracy", cv=5, n_jobs=-1)
+random_search.fit(x_train, y_train)
+func.report(y_test, random_search.predict(x_test), columns, "DT with search")
+
+
+# %% Correlation
+
+corr = dataPros.corr()
+fig = plt.figure()
+ax = fig.add_subplot(111)
+cax = ax.matshow(corr, cmap='coolwarm', vmin=-1, vmax=1)
+fig.colorbar(cax)
+ticks = np.arange(0, len(data.columns), 1)
+ax.set_xticks(ticks)
+plt.xticks(rotation=90)
+ax.set_yticks(ticks)
+ax.set_xticklabels(data.columns)
+ax.set_yticklabels(data.columns)
+plt.show()
+
+sns.heatmap(corr, annot=True, cmap=plt.cm.Reds)
+plt.show()
