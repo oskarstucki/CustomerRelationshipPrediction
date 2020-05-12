@@ -1,7 +1,6 @@
 pandas
 sklearn
 tensorflow
-isort
 pre-commit
 matplotlib
 scikitplot
